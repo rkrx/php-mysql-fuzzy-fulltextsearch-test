@@ -6,8 +6,20 @@ class Converter {
 	private static $chars = 'BCDFGHJKLMNPQRST';
 
 	/**
+	 * @var string
+	 */
+	private $charset = 'UTF-8';
+
+	/**
+	 * @param string $charset
+	 */
+	public function __construct($charset = 'UTF-8') {
+		$this->charset = $charset;
+	}
+
+	/**
 	 * @param string $text
-	 * @return string
+	 * @return string[]
 	 */
 	public function convert($text) {
 		$words = $this->getWords($text);
@@ -16,8 +28,7 @@ class Converter {
 			$ngrams = $this->convertWord($word);
 			$result = array_merge($result, $ngrams);
 		}
-		$result = array_unique($result);
-		return join(' ', $result);
+		return array_unique($result);
 	}
 
 	/**
@@ -26,6 +37,7 @@ class Converter {
 	 */
 	public function convertWord($word) {
 		$word = " {$word} ";
+		$word = mb_strtolower($word, $this->charset);
 		$ngrams = $this->buildNGrams($word, 3);
 		foreach($ngrams as &$ngram) {
 			$ngram = $this->encodeWord($ngram);
@@ -51,7 +63,7 @@ class Converter {
 	 * @return array
 	 */
 	public function getWords($text) {
-		return preg_split('/[^a-zA-Z]+/', $text);
+		return preg_split('/[^a-zA-Z]+/u', $text);
 	}
 
 	/**

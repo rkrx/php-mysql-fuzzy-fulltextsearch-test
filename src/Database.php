@@ -35,7 +35,25 @@ class Database {
 			) ENGINE=MyISAM;
 		');
 		$this->stmt['insert'] = $this->db->prepare('INSERT INTO fulltext_test SET text_plain=:plain, text_search=:search;');
-		$this->stmt['search'] = $this->db->prepare('SELECT id, text_plain FROM fulltext_test WHERE MATCH (text_search) AGAINST (:search IN BOOLEAN MODE) ORDER BY MATCH (text_search) AGAINST (:search) DESC LIMIT 10;');
+		$this->stmt['search'] = $this->db->prepare('
+			SELECT
+				id,
+				text_plain
+			FROM
+				fulltext_test
+			WHERE
+				MATCH (text_search) AGAINST (:search IN BOOLEAN MODE) > :minOccurrences
+			ORDER BY
+				MATCH (text_search) AGAINST (:search IN BOOLEAN MODE) * MATCH (text_search) AGAINST (:search) DESC
+			LIMIT
+				:limit;');
+	}
+
+	/**
+	 * @return PDO
+	 */
+	public function getPdo() {
+		return $this->db;
 	}
 
 	/**
@@ -51,7 +69,8 @@ class Database {
 	 * @return $this
 	 */
 	public function insert($line) {
-		$search = $this->converter->convert($line);
+		$ngrams = $this->converter->convert($line);
+		$search = join(' ', $ngrams);
 		$stmt = $this->stmt['insert'];
 		$stmt->bindValue('plain', $line);
 		$stmt->bindValue('search', $search);
@@ -61,11 +80,21 @@ class Database {
 
 	/**
 	 * @param string $query
+	 * @param int $limit
 	 * @return string
 	 */
-	public function search($query) {
+	public function search($query, $limit = 9999) {
+		$ngrams = $this->converter->convert($query);
+
+		$ngramCount = count($ngrams);
+		$ngramQuery = join(' ', $ngrams);
+
+		$minOccurrences = min(ceil($ngramCount * 0.3), $ngramCount - 3);
+
 		$stmt = $this->stmt['search'];
-		$stmt->bindValue('search', $this->converter->convert($query));
+		$stmt->bindValue('search', $ngramQuery);
+		$stmt->bindValue('minOccurrences', $minOccurrences);
+		$stmt->bindValue('limit', $limit, PDO::PARAM_INT);
 		$stmt->execute();
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
